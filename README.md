@@ -41,18 +41,23 @@ This module should support MySensors 1.4, 1.5 and 1.6 protocol.
         - log_queue             A queue of log messages
         - const                 Variable that points to the module of contants (mys_14, mys_15, mys_16, ...)
         - callbacks             A dictionary that points to the functions which will handle each message type
+    
     SerialGateway               It is an specialization to communicate over Serial port
+    
     EthernetGateway             It is an specialization to communicate over Ethernet port
+    
     Node                        Implements Node structure
         - id                    Node's id
         - sensors               Dictionary of sensors
         - sketch_name           Sketch name
         - sketch_version        Sketch version
         - battery_level         Battery level
+    
     Sensor                      Implements Sensor structure
         - id                    Sensor's id
         - type                  Sensor's type
         - values                Dictionary of values
+    
     Message                     Implements Message structure
         - node_id               Node's id
         - sensor_id             Sensor's id
@@ -84,7 +89,29 @@ This module should support MySensors 1.4, 1.5 and 1.6 protocol.
         - decode                Fill the object using a raw message
         - encode                Return a raw message using object's information
 
-## Customazing
+## Customization
+
+You can customize your own Gateway by creating a new class which inherit from the SerialGateway or EthernetGateway or 
+even from base Gateway (you will have to implement some required methods such as connect, send and receive). After that, 
+you just need to implement the methods you want to change.
+
+    from pymys import mysensors as mys
+    
+    class NewSerialProtocol(mys.SerialGateway):
+        def presentation(self, msg):
+            # Overwriting presentation handle
+            pass
+
+If you don't want to create a whole new class, you can just create a function and change on obeject's callbacks attribute/
+
+    from pymys import mysensors as mys
+    
+    def presentation(gw, msg):
+        # Now you can access Gateway object and Message object
+        pass
+    
+    gw = mys.SerialGateway("/dev/ttyACM0")
+    gw.callbacks[0] = presentation
 
 ## Usage
 
