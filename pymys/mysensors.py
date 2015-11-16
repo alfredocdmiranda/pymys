@@ -5,18 +5,17 @@ pymys - Python implementation of the MySensors Gateways and its helpers objects
 import time
 import serial
 
-from mysensors import mys_14
-from mysensors import mys_15
-from mysensors import mys_16
+from pymys import mys_14
+from pymys import mys_15
+from pymys import mys_16
 
 
 class Gateway(object):
     """ Base implementation for a MySensors Gateway. """
 
-    def __init__(self, message_callback=None, protocol_version=None, debug=False):
+    def __init__(self, message_callback=None, protocol_version=None):
         self.message_callback = message_callback
         self.nodes = {}
-        self.debug = debug
         self._protocol_version = protocol_version
         if self._protocol_version == 1.4:
             self._const = mys_14
@@ -136,7 +135,7 @@ class Gateway(object):
         """
         Parse the data and respond to it appropriately.
         Response is returned to the caller and has to be sent
-        data is a mysensors command string
+        data is a pymys command string
         """
 
         data = self.receive()
@@ -224,7 +223,7 @@ class Node(object):
     """ Represents a node. """
 
     def __init__(self, sensor_id):
-        self.node_id = sensor_id
+        self.id = sensor_id
         self.sensors = {}
         self.type = None
         self.sketch_name = ""
@@ -249,10 +248,9 @@ class Node(object):
 class Sensor(object):
     """ Represents a sensor. """
 
-    def __init__(self, id, type, name):
+    def __init__(self, id, type):
         self.id = id
         self.type = type
-        self.name = name
         self.values = {}
 
 
