@@ -20,11 +20,12 @@ def read(fname):
 
 setup(name='pymys',
       version=_VERSION_,
-      description="It is a module to make easier communication with MySensor's network.",
+      description='It is a module to make easier communication with MySensor\'s network.',
       author='Alfredo Miranda',
       author_email='alfredocdmiranda@gmail.com',
       url='https://github.com/alfredocdmiranda/pymys',
       keywords="MYS MySensors",
       license='MIT',
       long_description=read('DESCRIPTION.rst'),
-      classifiers=CLASSIFIERS)
+      classifiers=CLASSIFIERS,
+      packages=['pymys'])

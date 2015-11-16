@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from mysensors import mysensors as mys
+from pymys import mysensors as mys
 
 
 class TestGateway(unittest.TestCase):

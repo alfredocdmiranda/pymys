@@ -225,7 +225,6 @@ class Node(object):
     def __init__(self, sensor_id):
         self.id = sensor_id
         self.sensors = {}
-        self.type = None
         self.sketch_name = ""
         self.sketch_version = 0.0
         self.battery_level = 0
