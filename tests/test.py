@@ -59,13 +59,8 @@ class TestSerialGateway(unittest.TestCase):
     def testGatewayFailure(self, mock_readline):
         msg_1 = b""
         mock_readline.return_value.readline.side_effect = [msg_1]
-
-        with self.assertRaises(ValueError):
+        with self.assertRaises(mys.GatewayError):
             self.gw.connect()
-
-    @mock.patch('serial.Serial')
-    def testGatewayFailure(self, mock_readline):
-        pass
 
 
 class TestNode(unittest.TestCase):
