@@ -2,6 +2,7 @@
 pymys - Python implementation of the MySensors Gateways and its helpers objects
 """
 
+import time
 import serial
 
 from mysensors import mys_14
@@ -13,19 +14,19 @@ class Gateway(object):
     """ Base implementation for a MySensors Gateway. """
 
     def __init__(self, message_callback=None, protocol_version=None, debug=False):
-        super(Gateway, self).__init__()
         self.message_callback = message_callback
         self.nodes = {}
         self.debug = debug
-        self.protocol_version = protocol_version
-        if self.protocol_version == 1.4:
+        self._protocol_version = protocol_version
+        if self._protocol_version == 1.4:
             self._const = mys_14
-        elif self.protocol_version == 1.5:
+        elif self._protocol_version == 1.5:
             self._const = mys_15
-        elif self.protocol_version == 1.6:
+        elif self._protocol_version == 1.6:
             self._const = mys_16
 
         self.log_queue = []
+        self.callbacks = {}
 
     @property
     def const(self):
@@ -43,11 +44,24 @@ class Gateway(object):
             # TODO Raise an exception
             pass
 
-        self.callbacks = {self._const.MessageType.C_PRESENTATION: self.presentation,
-                          self._const.MessageType.C_SET: self.set,
-                          self._const.MessageType.C_REQ: self.req,
-                          self._const.MessageType.C_INTERNAL: self.internal,
-                          self._const.MessageType.C_STREAM: self.stream}
+        for msg_type in self._const.MessageType:
+            method_name = msg_type.name.split("_")[1].lower()
+            self.callbacks[msg_type] = getattr(self, method_name)
+
+    @property
+    def protocol_version(self):
+        return self._protocol_version
+
+    @protocol_version.setter
+    def protocol_version(self, value):
+        self._protocol_version = float(value)
+
+        if self._protocol_version == 1.4:
+            self._const = mys_14
+        elif self._protocol_version == 1.5:
+            self._const = mys_15
+        elif self._protocol_version == 1.6:
+            self._const = mys_16
 
     def connect(self):
         pass
@@ -63,64 +77,81 @@ class Gateway(object):
         """
         pass
 
+    def receive(self):
+        pass
+
     def presentation(self, msg):
         """
           Processes a presentation message.
           :param msg: Message from gateway.
         """
-        print(msg)
+        self.const.Presentation(msg.sub_type)
+
+        if msg.node_id not in self.nodes:
+            self.nodes[msg.node_id] = Node(msg.node_id)
+        else:
+            self.nodes[msg.node_id].add_sensor(msg.sensor_id, msg.sub_type, msg.payload)
 
     def set(self, msg):
         """
           Processes a set and a request message.
           :param msg: Message from gateway.
         """
-        print(msg)
+        self.const.SetReq(msg.sub_type)
+
+        self.nodes[msg.msg.node_id].set_child_value(msg.sensor_id, msg.sub_type, msg.payload)
 
     def req(self, msg):
-        print(msg)
+        self.const.SetReq(msg.sub_type)
 
     def stream(self, msg):
-        print(msg)
+        # TODO Implement
+        self.const.Stream(msg.sub_type)
 
     def internal(self, msg):
         """
           Processes an internal message.
           :param msg: Message from gateway.
         """
-        print(msg)
 
-    def process(self, data):
+        self.const.Internal(msg.sub_type)
+
+        if msg.sub_type == self.const.Internal.I_ID_REQUEST and msg.node_id == 255:
+            free_id = self.get_free_id()
+            response = msg.copy(**{'sub_type': self.const.Internal.I_ID_RESPONSE, 'payload': free_id})
+            self.send(response)
+        elif msg.sub_type == self.const.Internal.I_LOG_MESSAGE:
+            self.log_queue.append(msg)
+        elif msg.sub_type == self.const.Internal.I_BATTERY_LEVEL:
+            self.nodes[msg.node_id].battery_level = int(msg.payload)
+        elif msg.sub_type == self.const.Internal.I_SKETCH_NAME:
+            self.nodes[msg.node_id].sketch_name = msg.payload
+        elif msg.sub_type == self.const.Internal.I_SKETCH_VERSION:
+            self.nodes[msg.node_id].sketch_version = float(msg.payload)
+        elif msg.sub_type == self.const.Internal.I_TIME:
+            response = msg.copy({'payload': int(time.time())})
+            self.send(response)
+
+    def process(self):
         """
         Parse the data and respond to it appropriately.
         Response is returned to the caller and has to be sent
         data is a mysensors command string
-         """
-        pass
+        """
 
-    # def alert(self, nid):
-    #     """
-    #     Tell anyone who wants to know that a sensor was updated. Also save
-    #     sensors if persistence is enabled
-    #     """
-    #     pass
+        data = self.receive()
+        if data:
+            msg = Message(data)
 
-    # def add_sensor(self, sensorid=None):
-    #     """ Adds a sensor to the gateway. """
-    #     if sensorid is None:
-    #         sensorid = self._get_next_id()
-    #     if sensorid is not None and sensorid not in self.sensors:
-    #         self.sensors[sensorid] = Sensor(sensorid)
-    #         return sensorid
-    #     return None
+            msg_type = self.const.MessageType(msg.type)
+            self.callbacks[msg_type](msg)
 
-    # def is_sensor(self, sensorid, child_id=None):
-    #     """ Returns True if a sensor and its child exists. """
-    #     if sensorid not in self.sensors:
-    #         return False
-    #     if child_id is not None:
-    #         return child_id in self.sensors[sensorid].children
-    #     return True
+            if self.message_callback:
+                self.message_callback(msg)
+
+    def get_free_id(self):
+        free_ids = [ i for i in range(1,255) if i not in self.nodes.keys() ]
+        return free_ids[0]
 
 
 class SerialGateway(Gateway):
@@ -131,12 +162,13 @@ class SerialGateway(Gateway):
         self.port = port
         self.baudrate = baudrate
         self.timeout = kwargs.get('timeout', 10.0)
-        super(SerialGateway, self).__init__(self, message_callback, protocol_version, **kwargs)
+        super(SerialGateway, self).__init__(message_callback, protocol_version, **kwargs)
 
     def connect(self):
         """ Connects to the serial port. """
 
         if not self.serial:
+            connected = False
             try:
                 self.serial = serial.Serial(port=self.port, baudrate=self.baudrate,
                                             parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
@@ -144,15 +176,17 @@ class SerialGateway(Gateway):
                 msg = Message()
                 for _ in range(2):
                     data = self.serial.readline().decode("utf-8")
+                    if not data:
+                        raise GatewayError("Gateway not initialized correctly.")
                     msg.decode(data)
                     if msg.node_id == 0 and msg.type == 3:
                         if msg.sub_type == 9:
                             self.log_queue.append(msg.payload)
                         elif msg.sub_type == 14:
                             connected = True
-                # if not connected:
-                #     # TODO Raise an exception here
-                #     print("Not connected.")
+
+                if not connected:
+                    raise GatewayError("Gateway not initialized correctly.")
 
                 if self.protocol_version is None:
                     msg = Message("0;0;3;0;2;")
@@ -162,10 +196,9 @@ class SerialGateway(Gateway):
                     if msg.node_id == 0 and msg.type == 3 and msg.sub_type == 2:
                         self.protocol_version = msg.payload
                         self.const = self.protocol_version
-            # TODO Create exception if gateway was not started correclty.
+
             except serial.SerialException as err:
-                # TODO Raise an custom exception here
-                return False
+                raise GatewayError("Gateway not connected or problem in Serial connection.")
         return True
 
     def disconnect(self):
@@ -174,38 +207,12 @@ class SerialGateway(Gateway):
             self.serial.close()
             self.serial = None
 
-    def process(self):
-        """ Background thread that reads messages from the gateway. """
-
-        data = self.serial.readline().decode("utf-8")
-        if data:
-            msg = Message()
-            msg.decode(data)
-
-            msg_type = self.const.MessageType(msg.type)
-            self.callbacks[msg_type](msg)
-
-            # if msg.type == self.const.MessageType.C_PRESENTATION:
-            #     print("Presentation")
-            # elif msg.type == self.const.MessageType.C_SET:
-            #     print("Set")
-            # elif msg.type == self.const.MessageType.C_REQ:
-            #     print("Req")
-            # elif msg.type == self.const.MessageType.C_INTERNAL:
-            #     print("Internal")
-            # elif msg.type == self.const.MessageType.C_STREAM:
-            #     print("Stream")
-
-        return True
+    def receive(self):
+        return self.serial.readline().decode("utf-8")
 
     def send(self, message):
         """ Sends a Message to the gateway. """
         self.serial.write(message.encode().encode("utf-8"))
-
-
-    # def __str__(self):
-    #     return "Port: {} | Baudrate: {} | MyS Protocol: {}".format(self.serial.port, self.serial.baudrate,
-    #                                                                self.protocol_version)
 
 
 class EthernetGateway(Gateway):
@@ -224,41 +231,43 @@ class Node(object):
         self.sketch_version = 0.0
         self.battery_level = 0
 
-    def add_child_sensor(self, child_id, child_type):
+    def add_sensor(self, id, type, name):
         """ Creates and adds a child sensor. """
-        self.children[child_id] = Sensor(child_id, child_type)
+        if id not in self.sensors:
+            self.sensors[id] = Sensor(id, type, name)
 
-    def set_child_value(self, child_id, value_type, value):
+    def set_sensor_value(self, id, value_type, value):
         """ Sets a child sensor's value. """
-        if child_id in self.children:
-            self.children[child_id].values[value_type] = value
+        if id in self.sensors:
+            self.sensors[id].values[value_type] = value
         # TODO: Handle error
 
-    def __iter__(self):
-        pass
+    def __getitem__(self, item):
+        return self.sensors[item]
 
 
 class Sensor(object):
     """ Represents a sensor. """
 
-    def __init__(self, sensor_id, sensor_type):
-        self.id = child_id
-        self.type = child_type
+    def __init__(self, id, type, name):
+        self.id = id
+        self.type = type
+        self.name = name
         self.values = {}
 
 
 class Message(object):
     """ Represents a message from the gateway. """
 
-    def __init__(self, data=None):
+    def __init__(self, raw=None):
         self.node_id = 0
-        self.child_id = 0
+        self.sensor_id = 0
         self.type = ""
         self.ack = 0
         self.sub_type = ""
         self.payload = ""
-        if data is not None:
-            self.decode(data)
+        if raw is not None:
+            self.decode(raw)
 
     def copy(self, **kwargs):
         """
@@ -272,19 +281,22 @@ class Message(object):
 
     def decode(self, data):
         """ Decode a message from command string. """
-        data = data.rstrip().split(';')
-        self.payload = data.pop()
-        (self.node_id,
-         self.child_id,
-         self.type,
-         self.ack,
-         self.sub_type) = [int(f) for f in data]
+        try:
+            data = data.rstrip().split(';')
+            self.payload = data.pop()
+            (self.node_id,
+             self.sensor_id,
+             self.type,
+             self.ack,
+             self.sub_type) = [int(f) for f in data]
+        except ValueError:
+            raise BadMessageError("Malformed message: {}".format(data))
 
     def encode(self):
         """ Encode a command string from message. """
         return ";".join([str(f) for f in [
             self.node_id,
-            self.child_id,
+            self.sensor_id,
             int(self.type),
             self.ack,
             int(self.sub_type),
@@ -292,4 +304,17 @@ class Message(object):
         ]]) + "\n"
 
     def __str__(self):
-        return "{};{};{};{};{};{}".format(self.node_id, self.child_id, self.type, self.ack, self.sub_type, self.payload)
+        return "{};{};{};{};{};{}".format(self.node_id, self.sensor_id, self.type, self.ack, self.sub_type, self.payload)
+
+
+# Custom Exceptions
+
+
+class GatewayError(Exception):
+    def __init__(self, *args, **kwargs):
+        super(GatewayError, self).__init__(*args, **kwargs)
+
+
+class BadMessageError(Exception):
+    def __init__(self, *args, **kwargs):
+        super(BadMessageError, self).__init__(*args, **kwargs)
