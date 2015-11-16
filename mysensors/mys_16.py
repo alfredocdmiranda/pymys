@@ -55,6 +55,7 @@ class Presentation(IntEnum):
     S_MOISTURE = 35                 # Moisture sensor
     S_INFO = 36
     S_GAS = 37
+    S_GPS = 38
 
 
 class SetReq(IntEnum):
@@ -109,6 +110,9 @@ class SetReq(IntEnum):
     V_HVAC_SETPOINT_HEAT = 45   # HVAC/Heater setpoint (Integer between 0-100)
     V_HVAC_FLOW_MODE = 46       # Flow mode for HVAC ("Auto", "ContinuousOn", "PeriodicOn")
     V_TEXT = 47
+    V_CUSTOM = 48
+    V_POSITION = 49
+
 
 
 class Internal(IntEnum):
@@ -133,6 +137,8 @@ class Internal(IntEnum):
     I_GET_NONCE_RESPONSE = 17
     I_HEARTBEAT = 18
     I_PRESENTATION = 19
+    I_DISCOVER = 20
+    I_DISCOVER_RESPONSE = 21
 
 
 class Stream(IntEnum):
