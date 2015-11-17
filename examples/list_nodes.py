@@ -22,7 +22,15 @@ print("Connected!")
 t = threading.Thread(target=run_gateway)
 t.start()
 
+input("You should initialize/reinitialize all your nodes and press ENTER")
+
 while True:
-    data = input("")
-    msg = mys.Message(data)
-    gw.send(msg)
+    data = input("Write 'all' or the specific id which you want to see: ")
+    if data == 'all':
+        for node_id in gw.nodes:
+            print(gw[node_id])
+    else:
+        node_id = int(data)
+        print(gw[node_id])
+        for sensor_id in gw[node_id].sensors:
+            print(gw[node_id][sensor_id])
