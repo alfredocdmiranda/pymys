@@ -1,0 +1,12 @@
+# Change Log
+All notable changes to this project will be documented in this file.
+
+## [Unreleased] - [Unreleased]
+### Added
+- Base structure for Gateway
+- Support to Serial Gateway
+- Support to protocol 1.4
+- Support to protocol 1.5
+- Support to protocol 1.6
+- Support to change callback functions
+- Support to get dinamically the protocol version from the Gateway
