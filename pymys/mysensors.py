@@ -152,6 +152,9 @@ class Gateway(object):
         free_ids = [ i for i in range(1,255) if i not in self.nodes.keys() ]
         return free_ids[0]
 
+    def __getitem__(self, item):
+        return self.nodes[item]
+
 
 class SerialGateway(Gateway):
     """ MySensors Serial Gateway. """
@@ -243,6 +246,10 @@ class Node(object):
     def __getitem__(self, item):
         return self.sensors[item]
 
+    def __str__(self):
+        return "ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
+                "BATTERY LEVEL: {n.battery_level}".format(n=self)
+
 
 class Sensor(object):
     """ Represents a sensor. """
@@ -251,6 +258,9 @@ class Sensor(object):
         self.id = id
         self.type = type
         self.values = {}
+
+    def __str__(self):
+        return "ID: {s.id} | TYPE: {s.type} | VALUES: {s.values}".format(s=self)
 
 
 class Message(object):
