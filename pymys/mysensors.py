@@ -89,7 +89,7 @@ class Gateway(object):
         if msg.node_id not in self.nodes:
             self.nodes[msg.node_id] = Node(msg.node_id)
         else:
-            self.nodes[msg.node_id].add_sensor(msg.sensor_id, msg.sub_type, msg.payload)
+            self.nodes[msg.node_id].add_sensor(msg.sensor_id, msg.sub_type)
 
     def set(self, msg):
         """
@@ -229,10 +229,10 @@ class Node(object):
         self.sketch_version = 0.0
         self.battery_level = 0
 
-    def add_sensor(self, id, type, name):
+    def add_sensor(self, id, type):
         """ Creates and adds a child sensor. """
         if id not in self.sensors:
-            self.sensors[id] = Sensor(id, type, name)
+            self.sensors[id] = Sensor(id, type)
 
     def set_sensor_value(self, id, value_type, value):
         """ Sets a child sensor's value. """
