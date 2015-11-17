@@ -99,7 +99,12 @@ you just need to implement the methods you want to change.
     
     class NewSerialProtocol(mys.SerialGateway):
         def presentation(self, msg):
-            # Overwriting presentation handle
+            # Overwriting presentation handler
+            pass
+        
+        def get_free_id(self):
+            # You can even overwrite the algorithm which is responsible for give a free id. Currently, it just see if 
+            # there is any ID free in a range from 1 to 254 and return it.
             pass
 
 If you don't want to create a whole new class, you can just create a function and change on obeject's callbacks attribute/
@@ -115,4 +120,46 @@ If you don't want to create a whole new class, you can just create a function an
 
 ## Usage
 
+If you just want to print all messages that your Gateway send to you.
+
+    from pymys import mysensors as mys
+
+
+    def show_msg(msg):
+        print(msg)
     
+    gw = mys.SerialGateway("/dev/ttyACM0", message_callback=show_msg)
+    print("Trying to connect...")
+    gw.connect()
+    print("Connected!")
+    
+    while True:
+        gw.process()
+
+Creating an application with threads which allow you write raw messages and send to your network over your Gateway
+
+    import threading
+    
+    from pymys import mysensors as mys
+    
+    
+    def run_gateway():
+        while True:
+            gw.process()
+    
+    
+    def show_msg(msg):
+        print("Read: {}".format(msg))
+    
+    gw = mys.SerialGateway("/dev/ttyACM0", message_callback=show_msg)
+    print("Trying to connect...")
+    gw.connect()
+    print("Connected!")
+    
+    t = threading.Thread(target=run_gateway)
+    t.start()
+    
+    while True:
+        data = input("")
+        msg = mys.Message(data)
+        gw.send(msg)
