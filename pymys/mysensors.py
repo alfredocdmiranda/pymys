@@ -84,12 +84,14 @@ class Gateway(object):
           Processes a presentation message.
           :param msg: Message from gateway.
         """
+        # FIXME If a node with a repeated ID was presented, it will be "merged" to the old node.
+
         self.const.Presentation(msg.sub_type)
 
         if msg.node_id not in self.nodes:
             self.nodes[msg.node_id] = Node(msg.node_id)
-        else:
-            self.nodes[msg.node_id].add_sensor(msg.sensor_id, msg.sub_type)
+
+        self.nodes[msg.node_id].add_sensor(msg.sensor_id, self.const.Presentation(msg.sub_type))
 
     def set(self, msg):
         """
@@ -98,7 +100,7 @@ class Gateway(object):
         """
         self.const.SetReq(msg.sub_type)
 
-        self.nodes[msg.msg.node_id].set_child_value(msg.sensor_id, msg.sub_type, msg.payload)
+        self.nodes[msg.node_id].set_child_value(msg.sensor_id, self.const.SetReq(msg.sub_type), msg.payload)
 
     def req(self, msg):
         self.const.SetReq(msg.sub_type)
@@ -247,7 +249,7 @@ class Node(object):
         return self.sensors[item]
 
     def __str__(self):
-        return "ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
+        return "N_ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
                 "BATTERY LEVEL: {n.battery_level}".format(n=self)
 
 
@@ -260,7 +262,8 @@ class Sensor(object):
         self.values = {}
 
     def __str__(self):
-        return "ID: {s.id} | TYPE: {s.type} | VALUES: {s.values}".format(s=self)
+
+        return "S_ID: {s.id} | TYPE: {s.type.name} | VALUES: {s.values}".format(s=self)
 
 
 class Message(object):
