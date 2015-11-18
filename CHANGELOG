@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - [Unreleased]
+## [0.1] - [2015-11-17]
 ### Added
 - Base structure for Gateway
 - Support to Serial Gateway
