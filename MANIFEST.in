@@ -1,0 +1,8 @@
+include CHANGELOG
+include DESCRIPTION.rst
+include LICENSE
+include TODO
+include requirements.txt
+
+recursive-include examples *
+recursive-include tests *
