@@ -28,4 +28,5 @@ setup(name='pymys',
       license='MIT',
       long_description=read('DESCRIPTION.rst'),
       classifiers=CLASSIFIERS,
-      packages=['pymys'])
+      packages=['pymys'],
+      install_requires=['pyserial'],)
