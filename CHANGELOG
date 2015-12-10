@@ -3,6 +3,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - [Unreleased]
 ### Added
+- Thread Safe capabilities
+- New class DictThreadSafe to handle dictionary with thread safe
+- Some errors and try except
+
+### Changed
+- Some attributes to properties on Gateway class
+- Some attributes to properties on SerialGateway class
+- Some attributes to properties on Node class
+- Removed function to add sensors and added a property
+
+### Fixed
+- Fixed some function calls
+
+## [0.1] - [2015-11-17]
+### Added
 - Base structure for Gateway
 - Support to Serial Gateway
 - Support to protocol 1.4
