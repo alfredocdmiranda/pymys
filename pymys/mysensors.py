@@ -324,7 +324,7 @@ class Node(object):
             key = int(key)
             self.sensors[key] = Sensor(key, value)
         else:
-            raise NodeError("There is already a node with this ID.")
+            raise NodeError("There is already a sensor with this ID in this node.")
 
     def __str__(self):
         return "N_ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
