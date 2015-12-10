@@ -4,6 +4,7 @@ pymys - Python implementation of the MySensors Gateways and its helpers objects
 
 import time
 import serial
+from threading import Lock
 
 from pymys import mys_14
 from pymys import mys_15
@@ -15,7 +16,7 @@ class Gateway(object):
 
     def __init__(self, message_callback=None, protocol_version=None):
         self.message_callback = message_callback
-        self.nodes = {}
+        self.nodes = DictThreadSafe()
         self._protocol_version = protocol_version
         if self._protocol_version == 1.4:
             self._const = mys_14
@@ -26,41 +27,61 @@ class Gateway(object):
 
         self.log_queue = []
         self.callbacks = {}
+        self.lock = Lock()
 
     @property
     def const(self):
-        return self._const
+        self.lock.acquire()
+        try:
+            value = self._const
+        finally:
+            self.lock.release()
+
+        return value
 
     @const.setter
     def const(self, value):
-        if value == '1.4':
-            self._const = mys_14
-        elif value == '1.5':
-            self._const = mys_15
-        elif value == '1.6':
-            self._const = mys_16
-        else:
-            # TODO Raise an exception
-            pass
+        self.lock.acquire()
+        try:
+            if value == '1.4':
+                self._const = mys_14
+            elif value == '1.5':
+                self._const = mys_15
+            elif value == '1.6':
+                self._const = mys_16
+            else:
+                # TODO Raise an exception
+                pass
 
-        for msg_type in self._const.MessageType:
-            method_name = msg_type.name.split("_")[1].lower()
-            self.callbacks[msg_type] = getattr(self, method_name)
+            for msg_type in self._const.MessageType:
+                method_name = msg_type.name.split("_")[1].lower()
+                self.callbacks[msg_type] = getattr(self, method_name)
+        finally:
+            self.lock.release()
 
     @property
     def protocol_version(self):
-        return self._protocol_version
+        self.lock.acquire()
+        try:
+            value = self._protocol_version
+        finally:
+            self.lock.release()
+        return value
 
     @protocol_version.setter
     def protocol_version(self, value):
-        self._protocol_version = float(value)
+        self.lock.acquire()
+        try:
+            self._protocol_version = float(value)
 
-        if self._protocol_version == 1.4:
-            self._const = mys_14
-        elif self._protocol_version == 1.5:
-            self._const = mys_15
-        elif self._protocol_version == 1.6:
-            self._const = mys_16
+            if self._protocol_version == 1.4:
+                self._const = mys_14
+            elif self._protocol_version == 1.5:
+                self._const = mys_15
+            elif self._protocol_version == 1.6:
+                self._const = mys_16
+        finally:
+            self.lock.release()
 
     def connect(self):
         pass
@@ -151,7 +172,7 @@ class Gateway(object):
                 self.message_callback(msg)
 
     def get_free_id(self):
-        free_ids = [ i for i in range(1,255) if i not in self.nodes.keys() ]
+        free_ids = [i for i in range(1,255) if i not in self.nodes.keys()]
         return free_ids[0]
 
     def __getitem__(self, item):
@@ -163,12 +184,12 @@ class SerialGateway(Gateway):
 
     def __init__(self, port, baudrate=115200, message_callback=None, protocol_version=None, **kwargs):
         self.serial = None
-        self.port = port
-        self.baudrate = baudrate
-        self.timeout = kwargs.get('timeout', 10.0)
+        self._port = port
+        self._baudrate = baudrate
+        self._timeout = kwargs.get('timeout', 10.0)
         super(SerialGateway, self).__init__(message_callback, protocol_version, **kwargs)
 
-    def connect(self):
+    def connect(self, timeout=10):
         """ Connects to the serial port. """
 
         if not self.serial:
@@ -178,16 +199,18 @@ class SerialGateway(Gateway):
                                             parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
                                             bytesize=serial.EIGHTBITS, timeout=self.timeout)
                 msg = Message()
-                for _ in range(2):
+                for i in range(timeout+1):
                     data = self.serial.readline().decode("utf-8")
-                    if not data:
+                    if not data or i == timeout:
                         raise GatewayError("Gateway not initialized correctly.")
+                    print(data)
                     msg.decode(data)
                     if msg.node_id == 0 and msg.type == 3:
                         if msg.sub_type == 9:
                             self.log_queue.append(msg.payload)
                         elif msg.sub_type == 14:
                             connected = True
+                            break
 
                 if not connected:
                     raise GatewayError("Gateway not initialized correctly.")
@@ -212,11 +235,47 @@ class SerialGateway(Gateway):
             self.serial = None
 
     def receive(self):
-        return self.serial.readline().decode("utf-8")
+        self.lock.acquire()
+        try:
+            value = self.serial.readline().decode("utf-8")
+        finally:
+            self.lock.release()
+
+        return value
 
     def send(self, message):
         """ Sends a Message to the gateway. """
-        self.serial.write(message.encode().encode("utf-8"))
+        self.lock.acquire()
+        try:
+            self.serial.write(message.encode().encode("utf-8"))
+        finally:
+            self.lock.release()
+
+    @property
+    def baudrate(self):
+        return self._baudrate
+
+    @property
+    def port(self):
+        return self._port
+
+    @property
+    def timeout(self):
+        self.lock.acquire()
+        try:
+            value = self._timeout
+        finally:
+            self.lock.release()
+
+        return value
+
+    @timeout.setter
+    def timeout(self, value):
+        self.lock.acquire()
+        try:
+            self._timeout = value
+        finally:
+            self.lock.release()
 
 
 class EthernetGateway(Gateway):
@@ -228,16 +287,11 @@ class Node(object):
     """ Represents a node. """
 
     def __init__(self, sensor_id):
-        self.id = sensor_id
-        self.sensors = {}
-        self.sketch_name = ""
-        self.sketch_version = 0.0
-        self.battery_level = 0
-
-    def add_sensor(self, id, type):
-        """ Creates and adds a child sensor. """
-        if id not in self.sensors:
-            self.sensors[id] = Sensor(id, type)
+        self._id = sensor_id
+        self.sensors = DictThreadSafe()
+        self._sketch_name = ""
+        self._sketch_version = 0.0
+        self._battery_level = 0
 
     def set_sensor_value(self, id, value_type, value):
         """ Sets a child sensor's value. """
@@ -245,8 +299,32 @@ class Node(object):
             self.sensors[id].values[value_type] = value
         # TODO: Handle error
 
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def sketch_name(self):
+        return self._sketch_name
+
+    @property
+    def sketch_version(self):
+        return self._sketch_version
+
+    @property
+    def battery_level(self):
+        return self._battery_level
+
     def __getitem__(self, item):
+        item = int(item)
         return self.sensors[item]
+
+    def __setitem__(self, key, value):
+        if key not in self.sensors:
+            key = int(key)
+            self.sensors[key] = Sensor(key, value)
+        else:
+            raise NodeError("There is already a node with this ID.")
 
     def __str__(self):
         return "N_ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
@@ -259,10 +337,9 @@ class Sensor(object):
     def __init__(self, id, type):
         self.id = id
         self.type = type
-        self.values = {}
+        self.values = DictThreadSafe()
 
     def __str__(self):
-
         return "S_ID: {s.id} | TYPE: {s.type.name} | VALUES: {s.values}".format(s=self)
 
 
@@ -316,6 +393,27 @@ class Message(object):
     def __str__(self):
         return "{};{};{};{};{};{}".format(self.node_id, self.sensor_id, self.type, self.ack, self.sub_type, self.payload)
 
+# Helper Objects
+
+
+class DictThreadSafe(dict):
+    def __init__(self, *args, **kwargs):
+        self.lock = Lock()
+        super(DictThreadSafe, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        self.lock.acquire()
+        try:
+            value = dict.__getitem__(self, key)
+        finally:
+            self.lock.release()
+
+        return value
+
+    def __setitem__(self, key, value):
+        self.lock.acquire()
+        dict.__setitem__(self, key, value)
+        self.lock.release()
 
 # Custom Exceptions
 
@@ -324,6 +422,10 @@ class GatewayError(Exception):
     def __init__(self, *args, **kwargs):
         super(GatewayError, self).__init__(*args, **kwargs)
 
+
+class NodeError(Exception):
+    def __init__(self, *args, **kwargs):
+        super(NodeError, self).__init__(*args, **kwargs)
 
 class BadMessageError(Exception):
     def __init__(self, *args, **kwargs):
