@@ -172,7 +172,6 @@ class Gateway(object):
         data = self.msg_queue.get(block=False)
         if data:
             msg = Message(data)
-            print(msg)
 
             msg_type = self.const.MessageType(msg.type)
             self.callbacks[msg_type](msg)
