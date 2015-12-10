@@ -4,6 +4,7 @@ pymys - Python implementation of the MySensors Gateways and its helpers objects
 
 import time
 import serial
+from queue import Queue
 from threading import Lock
 
 from pymys import mys_14
@@ -25,7 +26,8 @@ class Gateway(object):
         elif self._protocol_version == 1.6:
             self._const = mys_16
 
-        self.log_queue = []
+        self.msg_queue = Queue()
+        self.log_queue = Queue()
         self.callbacks = {}
         self.lock = Lock()
 
@@ -72,7 +74,7 @@ class Gateway(object):
     def protocol_version(self, value):
         self.lock.acquire()
         try:
-            self._protocol_version = float(value)
+            self._protocol_version = float(value[:3])
 
             if self._protocol_version == 1.4:
                 self._const = mys_14
@@ -112,7 +114,7 @@ class Gateway(object):
         if msg.node_id not in self.nodes:
             self.nodes[msg.node_id] = Node(msg.node_id)
 
-        self.nodes[msg.node_id].add_sensor(msg.sensor_id, self.const.Presentation(msg.sub_type))
+        self.nodes[msg.node_id][msg.sensor_id] = self.const.Presentation(msg.sub_type)
 
     def set(self, msg):
         """
@@ -121,7 +123,7 @@ class Gateway(object):
         """
         self.const.SetReq(msg.sub_type)
 
-        self.nodes[msg.node_id].set_child_value(msg.sensor_id, self.const.SetReq(msg.sub_type), msg.payload)
+        self.nodes[msg.node_id].set_sensor_value(msg.sensor_id, self.const.SetReq(msg.sub_type), msg.payload)
 
     def req(self, msg):
         self.const.SetReq(msg.sub_type)
@@ -138,12 +140,15 @@ class Gateway(object):
 
         self.const.Internal(msg.sub_type)
 
+        if msg.node_id not in self.nodes:
+            self.nodes[msg.node_id] = Node(msg.node_id)
+
         if msg.sub_type == self.const.Internal.I_ID_REQUEST and msg.node_id == 255:
             free_id = self.get_free_id()
             response = msg.copy(**{'sub_type': self.const.Internal.I_ID_RESPONSE, 'payload': free_id})
             self.send(response)
         elif msg.sub_type == self.const.Internal.I_LOG_MESSAGE:
-            self.log_queue.append(msg)
+            self.log_queue.put(msg)
         elif msg.sub_type == self.const.Internal.I_BATTERY_LEVEL:
             self.nodes[msg.node_id].battery_level = int(msg.payload)
         elif msg.sub_type == self.const.Internal.I_SKETCH_NAME:
@@ -162,8 +167,12 @@ class Gateway(object):
         """
 
         data = self.receive()
+
+        self.msg_queue.put(data)
+        data = self.msg_queue.get(block=False)
         if data:
             msg = Message(data)
+            print(msg)
 
             msg_type = self.const.MessageType(msg.type)
             self.callbacks[msg_type](msg)
@@ -201,13 +210,17 @@ class SerialGateway(Gateway):
                 msg = Message()
                 for i in range(timeout+1):
                     data = self.serial.readline().decode("utf-8")
+
                     if not data or i == timeout:
                         raise GatewayError("Gateway not initialized correctly.")
-                    print(data)
-                    msg.decode(data)
+                    try:
+                        msg.decode(data)
+                    except BadMessageError:
+                        # FIXME This was put here because a bug on pyserial that couldn't flush the buffer
+                        continue
                     if msg.node_id == 0 and msg.type == 3:
                         if msg.sub_type == 9:
-                            self.log_queue.append(msg.payload)
+                            self.log_queue.put(msg.payload)
                         elif msg.sub_type == 14:
                             connected = True
                             break
@@ -219,7 +232,11 @@ class SerialGateway(Gateway):
                     msg = Message("0;0;3;0;2;")
                     self.serial.write(msg.encode().encode("utf-8"))
                     data = self.serial.readline().decode("utf-8")
+                    while not data.startswith("0;0;3;0;2;"):
+                        self.msg_queue.put(data)
+                        data = self.serial.readline().decode("utf-8")
                     msg.decode(data)
+                    # print("Version:", data)
                     if msg.node_id == 0 and msg.type == 3 and msg.sub_type == 2:
                         self.protocol_version = msg.payload
                         self.const = self.protocol_version
@@ -287,11 +304,13 @@ class Node(object):
     """ Represents a node. """
 
     def __init__(self, sensor_id):
-        self._id = sensor_id
+        self._id = int(sensor_id)
         self.sensors = DictThreadSafe()
         self._sketch_name = ""
         self._sketch_version = 0.0
         self._battery_level = 0
+
+        self.lock = Lock()
 
     def set_sensor_value(self, id, value_type, value):
         """ Sets a child sensor's value. """
@@ -305,15 +324,57 @@ class Node(object):
 
     @property
     def sketch_name(self):
-        return self._sketch_name
+        self.lock.acquire()
+        try:
+            value = self._sketch_name
+        finally:
+            self.lock.release()
+
+        return value
+
+    @sketch_name.setter
+    def sketch_name(self, value):
+        self.lock.acquire()
+        try:
+            self._sketch_name = str(value)
+        finally:
+            self.lock.release()
 
     @property
     def sketch_version(self):
-        return self._sketch_version
+        self.lock.acquire()
+        try:
+            value = self._sketch_version
+        finally:
+            self.lock.release()
+
+        return value
+
+    @sketch_version.setter
+    def sketch_version(self, value):
+        self.lock.acquire()
+        try:
+            self._sketch_version = float(value)
+        finally:
+            self.lock.release()
 
     @property
     def battery_level(self):
-        return self._battery_level
+        self.lock.acquire()
+        try:
+            value = int(self._battery_level)
+        finally:
+            self.lock.release()
+
+        return value
+
+    @battery_level.setter
+    def battery_level(self, value):
+        self.lock.acquire()
+        try:
+            self._battery_level = value
+        finally:
+            self.lock.release()
 
     def __getitem__(self, item):
         item = int(item)
@@ -335,7 +396,7 @@ class Sensor(object):
     """ Represents a sensor. """
 
     def __init__(self, id, type):
-        self.id = id
+        self.id = int(id)
         self.type = type
         self.values = DictThreadSafe()
 
