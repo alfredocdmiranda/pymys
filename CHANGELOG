@@ -16,6 +16,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Fixed some function calls
+- Fixed bug caused by PySerial that doesn't flush serial buffer. So I've create a workaround.
+
+### Removed
+- Support to MySensors Protocol 1.4
 
 ## [0.1] - [2015-11-17]
 ### Added

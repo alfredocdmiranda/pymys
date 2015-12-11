@@ -4,7 +4,7 @@ pymys - Python implementation of the MySensors Gateways and its helpers objects
 
 import time
 import serial
-from threading import Lock
+from threading import RLock
 
 from pymys import mys_14
 from pymys import mys_15
@@ -19,9 +19,7 @@ class Gateway(object):
         self.message_callback = message_callback
         self.nodes = utils.DictThreadSafe()
         self._protocol_version = protocol_version
-        if self._protocol_version == 1.4:
-            self._const = mys_14
-        elif self._protocol_version == 1.5:
+        if self._protocol_version == 1.5:
             self._const = mys_15
         elif self._protocol_version == 1.6:
             self._const = mys_16
@@ -29,7 +27,7 @@ class Gateway(object):
         self.msg_queue = utils.IndexableQueue()
         self.log_queue = utils.IndexableQueue()
         self.callbacks = {}
-        self.lock = Lock()
+        self.lock = RLock()
 
     @property
     def const(self):
@@ -41,11 +39,9 @@ class Gateway(object):
     @const.setter
     def const(self, value):
         with self.lock:
-            if value == '1.4':
-                self._const = mys_14
-            elif value == '1.5':
+            if value == 1.5:
                 self._const = mys_15
-            elif value == '1.6':
+            elif value == 1.6:
                 self._const = mys_16
             else:
                 # TODO Raise an exception
@@ -65,14 +61,9 @@ class Gateway(object):
     @protocol_version.setter
     def protocol_version(self, value):
         with self.lock:
-            self._protocol_version = float(value[:3])
-
-            if self._protocol_version == 1.4:
-                self._const = mys_14
-            elif self._protocol_version == 1.5:
-                self._const = mys_15
-            elif self._protocol_version == 1.6:
-                self._const = mys_16
+            value = float(value[:3])
+            self.const = value
+            self._protocol_version = value
 
     def connect(self):
         pass
@@ -286,7 +277,7 @@ class Node(object):
         self._sketch_version = 0.0
         self._battery_level = 0
 
-        self.lock = Lock()
+        self.lock = RLock()
 
     def set_sensor_value(self, id, value_type, value):
         """ Sets a child sensor's value. """
