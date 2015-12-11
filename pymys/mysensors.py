@@ -4,12 +4,12 @@ pymys - Python implementation of the MySensors Gateways and its helpers objects
 
 import time
 import serial
-from queue import Queue
 from threading import Lock
 
 from pymys import mys_14
 from pymys import mys_15
 from pymys import mys_16
+from pymys import utils
 
 
 class Gateway(object):
@@ -17,7 +17,7 @@ class Gateway(object):
 
     def __init__(self, message_callback=None, protocol_version=None):
         self.message_callback = message_callback
-        self.nodes = DictThreadSafe()
+        self.nodes = utils.DictThreadSafe()
         self._protocol_version = protocol_version
         if self._protocol_version == 1.4:
             self._const = mys_14
@@ -26,25 +26,21 @@ class Gateway(object):
         elif self._protocol_version == 1.6:
             self._const = mys_16
 
-        self.msg_queue = Queue()
-        self.log_queue = Queue()
+        self.msg_queue = utils.IndexableQueue()
+        self.log_queue = utils.IndexableQueue()
         self.callbacks = {}
         self.lock = Lock()
 
     @property
     def const(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self._const
-        finally:
-            self.lock.release()
 
         return value
 
     @const.setter
     def const(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             if value == '1.4':
                 self._const = mys_14
             elif value == '1.5':
@@ -58,22 +54,17 @@ class Gateway(object):
             for msg_type in self._const.MessageType:
                 method_name = msg_type.name.split("_")[1].lower()
                 self.callbacks[msg_type] = getattr(self, method_name)
-        finally:
-            self.lock.release()
 
     @property
     def protocol_version(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self._protocol_version
-        finally:
-            self.lock.release()
+
         return value
 
     @protocol_version.setter
     def protocol_version(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._protocol_version = float(value[:3])
 
             if self._protocol_version == 1.4:
@@ -82,8 +73,6 @@ class Gateway(object):
                 self._const = mys_15
             elif self._protocol_version == 1.6:
                 self._const = mys_16
-        finally:
-            self.lock.release()
 
     def connect(self):
         pass
@@ -251,21 +240,15 @@ class SerialGateway(Gateway):
             self.serial = None
 
     def receive(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self.serial.readline().decode("utf-8")
-        finally:
-            self.lock.release()
 
         return value
 
     def send(self, message):
         """ Sends a Message to the gateway. """
-        self.lock.acquire()
-        try:
+        with self.lock:
             self.serial.write(message.encode().encode("utf-8"))
-        finally:
-            self.lock.release()
 
     @property
     def baudrate(self):
@@ -277,21 +260,15 @@ class SerialGateway(Gateway):
 
     @property
     def timeout(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self._timeout
-        finally:
-            self.lock.release()
 
         return value
 
     @timeout.setter
     def timeout(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._timeout = value
-        finally:
-            self.lock.release()
 
 
 class EthernetGateway(Gateway):
@@ -304,7 +281,7 @@ class Node(object):
 
     def __init__(self, sensor_id):
         self._id = int(sensor_id)
-        self.sensors = DictThreadSafe()
+        self.sensors = utils.DictThreadSafe()
         self._sketch_name = ""
         self._sketch_version = 0.0
         self._battery_level = 0
@@ -323,57 +300,39 @@ class Node(object):
 
     @property
     def sketch_name(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self._sketch_name
-        finally:
-            self.lock.release()
 
         return value
 
     @sketch_name.setter
     def sketch_name(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._sketch_name = str(value)
-        finally:
-            self.lock.release()
 
     @property
     def sketch_version(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = self._sketch_version
-        finally:
-            self.lock.release()
 
         return value
 
     @sketch_version.setter
     def sketch_version(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._sketch_version = float(value)
-        finally:
-            self.lock.release()
 
     @property
     def battery_level(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             value = int(self._battery_level)
-        finally:
-            self.lock.release()
 
         return value
 
     @battery_level.setter
     def battery_level(self, value):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._battery_level = value
-        finally:
-            self.lock.release()
 
     def __getitem__(self, item):
         item = int(item)
@@ -397,7 +356,7 @@ class Sensor(object):
     def __init__(self, id, type):
         self.id = int(id)
         self.type = type
-        self.values = DictThreadSafe()
+        self.values = utils.DictThreadSafe()
 
     def __str__(self):
         return "S_ID: {s.id} | TYPE: {s.type.name} | VALUES: {s.values}".format(s=self)
@@ -452,28 +411,6 @@ class Message(object):
 
     def __str__(self):
         return "{};{};{};{};{};{}".format(self.node_id, self.sensor_id, self.type, self.ack, self.sub_type, self.payload)
-
-# Helper Objects
-
-
-class DictThreadSafe(dict):
-    def __init__(self, *args, **kwargs):
-        self.lock = Lock()
-        super(DictThreadSafe, self).__init__(*args, **kwargs)
-
-    def __getitem__(self, key):
-        self.lock.acquire()
-        try:
-            value = dict.__getitem__(self, key)
-        finally:
-            self.lock.release()
-
-        return value
-
-    def __setitem__(self, key, value):
-        self.lock.acquire()
-        dict.__setitem__(self, key, value)
-        self.lock.release()
 
 # Custom Exceptions
 
