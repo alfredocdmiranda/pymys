@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Thread Safe capabilities
 - New class DictThreadSafe to handle dictionary with thread safe
+- New class IndexedQueueSafe to get any message in Queue with thread safe yet
 - Some errors and try except
 
 ### Changed
