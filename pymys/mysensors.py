@@ -151,12 +151,11 @@ class Gateway(object):
         elif msg.sub_type == self.const.Internal.I_SKETCH_VERSION:
             self.nodes[msg.node_id].sketch_version = float(msg.payload)
         elif msg.sub_type == self.const.Internal.I_TIME:
-            response = msg.copy({'payload': int(time.time())})
+            response = msg.copy(**{'payload': int(time.time())})
             self.send(response)
         elif msg.sub_type == self.const.Internal.I_CONFIG:
-            response = msg.copy({'payload': self._config})
+            response = msg.copy(**{'payload': self._config})
             self.send(response)
-
 
     def process(self):
         """
@@ -183,6 +182,7 @@ class Gateway(object):
         return free_ids[0]
 
     def __getitem__(self, item):
+        item = int(item)
         return self.nodes[item]
 
 
@@ -234,7 +234,7 @@ class SerialGateway(Gateway):
                         self.msg_queue.put(data)
                         data = self.serial.readline().decode("utf-8")
                     msg.decode(data)
-                    # print("Version:", data)
+
                     if msg.node_id == 0 and msg.type == 3 and msg.sub_type == 2:
                         self.protocol_version = msg.payload
                         self.const = self.protocol_version
@@ -245,9 +245,10 @@ class SerialGateway(Gateway):
 
     def disconnect(self):
         """ Disconnects from the serial port. """
-        if self.serial is not None:
-            self.serial.close()
-            self.serial = None
+        with self.lock:
+            if self.serial is not None:
+                self.serial.close()
+                self.serial = None
 
     def receive(self):
         with self.lock:
@@ -433,6 +434,7 @@ class GatewayError(Exception):
 class NodeError(Exception):
     def __init__(self, *args, **kwargs):
         super(NodeError, self).__init__(*args, **kwargs)
+
 
 class BadMessageError(Exception):
     def __init__(self, *args, **kwargs):
