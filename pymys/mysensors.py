@@ -6,7 +6,6 @@ import time
 import serial
 from threading import RLock
 
-from pymys import mys_14
 from pymys import mys_15
 from pymys import mys_16
 from pymys import utils
@@ -24,10 +23,26 @@ class Gateway(object):
         elif self._protocol_version == 1.6:
             self._const = mys_16
 
+        self._config = 'M'
+
         self.msg_queue = utils.IndexableQueue()
         self.log_queue = utils.IndexableQueue()
         self.callbacks = {}
         self.lock = RLock()
+
+    @property
+    def config(self):
+        with self.lock:
+            value = self._config
+
+        return value
+
+    @config.setter
+    def config(self, value):
+        with self.lock:
+            value = value.upper()
+            if value == 'M' or value == 'I':
+                self._config = value
 
     @property
     def const(self):
@@ -138,6 +153,10 @@ class Gateway(object):
         elif msg.sub_type == self.const.Internal.I_TIME:
             response = msg.copy({'payload': int(time.time())})
             self.send(response)
+        elif msg.sub_type == self.const.Internal.I_CONFIG:
+            response = msg.copy({'payload': self._config})
+            self.send(response)
+
 
     def process(self):
         """
