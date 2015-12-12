@@ -1,6 +1,26 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [0.2] - [2015-12-12]
+### Added
+- Thread Safe capabilities
+- New class DictThreadSafe to handle dictionary with thread safe
+- New class IndexedQueueSafe to get any message in Queue with thread safe yet
+- Some errors and try except
+
+### Changed
+- Some attributes to properties on Gateway class
+- Some attributes to properties on SerialGateway class
+- Some attributes to properties on Node class
+- Removed function to add sensors and added a property
+
+### Fixed
+- Fixed some function calls
+- Fixed bug caused by PySerial that doesn't flush serial buffer. So I've create a workaround.
+
+### Removed
+- Support to MySensors Protocol 1.4
+
 ## [0.1] - [2015-11-17]
 ### Added
 - Base structure for Gateway

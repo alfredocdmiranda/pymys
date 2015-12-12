@@ -1,7 +1,7 @@
 from setuptools import setup, Extension
 import os
 
-_VERSION_ = '0.1'
+_VERSION_ = '0.2'
 
 CLASSIFIERS = [
     "Development Status :: 1 - Planning",
