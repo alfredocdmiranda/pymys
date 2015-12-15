@@ -177,6 +177,13 @@ class Gateway(object):
             if self.message_callback:
                 self.message_callback(msg)
 
+    def reboot(self, node_id):
+        msg = Message()
+        msg.node_id = int(node_id)
+        msg.type = self.const.MessageType.C_INTERNAL
+        msg.sub_type = self.const.Internal.I_REBOOT
+        self.send(msg)
+
     def get_free_id(self):
         free_ids = [i for i in range(1,255) if i not in self.nodes.keys()]
         return free_ids[0]
@@ -193,7 +200,7 @@ class SerialGateway(Gateway):
         self.serial = None
         self._port = port
         self._baudrate = baudrate
-        self._timeout = kwargs.get('timeout', 10.0)
+        self._timeout = kwargs.get('timeout', 1.0)
         super(SerialGateway, self).__init__(message_callback, protocol_version, **kwargs)
 
     def connect(self, timeout=10):
@@ -207,7 +214,7 @@ class SerialGateway(Gateway):
                                             bytesize=serial.EIGHTBITS, timeout=self.timeout)
                 msg = Message()
                 for i in range(timeout+1):
-                    data = self.serial.readline().decode("utf-8")
+                    data = utils.serial_read(self.serial)
 
                     if not data or i == timeout:
                         raise GatewayError("Gateway not initialized correctly.")
@@ -228,11 +235,11 @@ class SerialGateway(Gateway):
 
                 if self.protocol_version is None:
                     msg = Message("0;0;3;0;2;")
-                    self.serial.write(msg.encode().encode("utf-8"))
-                    data = self.serial.readline().decode("utf-8")
+                    self.send(msg)
+                    data = utils.serial_read(self.serial)
                     while not data.startswith("0;0;3;0;2;"):
                         self.msg_queue.put(data)
-                        data = self.serial.readline().decode("utf-8")
+                        data = utils.serial_read(self.serial)
                     msg.decode(data)
 
                     if msg.node_id == 0 and msg.type == 3 and msg.sub_type == 2:
@@ -240,7 +247,7 @@ class SerialGateway(Gateway):
                         self.const = self.protocol_version
 
             except serial.SerialException as err:
-                raise GatewayError("Gateway not connected or problem in Serial connection.")
+                raise GatewayError("Gateway not connected or problem in Serial connection: {}".format(err))
         return True
 
     def disconnect(self):
@@ -252,7 +259,7 @@ class SerialGateway(Gateway):
 
     def receive(self):
         with self.lock:
-            value = self.serial.readline().decode("utf-8")
+            value = utils.serial_read(self.serial)
 
         return value
 
@@ -353,12 +360,13 @@ class Node(object):
         if key not in self.sensors:
             key = int(key)
             self.sensors[key] = Sensor(key, value)
-        else:
-            raise NodeError("There is already a sensor with this ID in this node.")
 
     def __str__(self):
         return "N_ID: {n.id} | SKETCH NAME: {n.sketch_name} | SKETCH_VERSION: {n.sketch_version} | "\
                 "BATTERY LEVEL: {n.battery_level}".format(n=self)
+
+    def __repr__(self):
+        return str(self.sensors)
 
 
 class Sensor(object):
