@@ -1,6 +1,17 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - [Unreleased]
+### Added
+- Support to reboot nodes
+
+### Changed
+- Switched calls to readline serial function for a function that we can control the timeout to not block our thread.
+
+### Fixed
+- Fixed some bugs
+- Fixed "bug", when one node that has already been inserted raises an NodeError exception
+
 ## [0.2] - [2015-12-12]
 ### Added
 - Thread Safe capabilities
