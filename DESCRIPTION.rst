@@ -80,7 +80,21 @@ Creating an application with threads which allow you write raw messages and send
         gw.send(msg)
 
 What's new
-===========
+==========
+- Added reboot nodes function
+- Fixed some bugs
+- Switched function to serial readline
+-
+
+What's new 0.2
+==============
+- Removed support to protocol version 1.4
+- Added support to I_CONFIG messages
+- A IndexableQueue type is being used to allow to traverse over the queue without you have to remove the messages
+- add_sensor method was removed, you can add a new sensor just using dictionary dialect, e.g. "node[0] = S_LIGHT"
+
+What's new 0.1
+==============
 - Base structure for Gateway
 - Support to Serial Gateway
 - Support to protocol 1.4
