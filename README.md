@@ -31,16 +31,18 @@ This project should support all Python 3 versions. However, it was only tested w
 
 ## Protocol Version Supported
 
-This module should support MySensors 1.4, 1.5 and 1.6 protocol.
+This module should support MySensors 1.5 and 1.6 protocol.
 
 ## Data Structures
 
     Gateway                     Implements Gateway's base
         - nodes                 Dictionary of nodes
         - protocol_version      Gateway's protocol version
-        - log_queue             A queue of log messages
-        - const                 Variable that points to the module of contants (mys_14, mys_15, mys_16, ...)
+        - const                 Variable that points to the module of contants (mys_15, mys_16, ...)
         - callbacks             A dictionary that points to the functions which will handle each message type
+        - config                It defines if network is set to (M)etrics or (I)mperial
+        - msg_queue             A queue that stores all the messages, including log messages
+        - log_queue             A queue of log messages
     
     SerialGateway               It is an specialization to communicate over Serial port
     
@@ -79,10 +81,10 @@ This module should support MySensors 1.4, 1.5 and 1.6 protocol.
         - stream                Handles stream messages
         - internal              Handles internal messages
         - process               Try to receive a message and handle it
+        - reboot                Allow to reboot nodes
         - get_free_id           Return a free id to be assign to a node
     
-    Node
-        - add_sensor            Includes a node in list of sensors
+    Node    
         - set_sensor_value      Set a new value to a sensor
     Message
         - copy                  Return a new Message object
